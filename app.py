@@ -5,7 +5,6 @@ import os
 
 import pixeltable as pxt
 import pixeltable.functions as pxtf
-from pixeltable.functions.audio import get_metadata
 from pixeltable.serving import FastAPIRouter
 from pydantic import BaseModel
 
@@ -16,9 +15,9 @@ from features import (
     classify_genre,
     detect_key,
     genre_is_uncertain,
-    genre_rank,
     key_is_uncertain,
     key_relation,
+    keys_related,
     phrase_loudness,
     loudness_db,
     phrase_low_end,
@@ -36,7 +35,7 @@ class Tracks(TableModel, name='tracks'):
     given_title: pxt.String | None
     id = pxt.Column(value=pxtf.uuid.uuid7().to_string(), primary_key=True)
     title = resolve_title(given_title, audio)
-    meta = get_metadata(audio)
+    meta = pxtf.audio.get_metadata(audio)
     duration = meta.streams[0].duration_seconds
     grid = analyze_grid(audio)
     audible_start = grid.audible_start
@@ -64,7 +63,15 @@ class Tracks(TableModel, name='tracks'):
 class Phrases(
     TableModel,
     name='phrases',
-    base=Tracks,
+    base=Tracks.select(
+        Tracks.id,
+        Tracks.title,
+        Tracks.audio,
+        Tracks.beat_times,
+        Tracks.audible_start,
+        Tracks.audible_end,
+        Tracks.bpm,
+    ),
     iterator=phrase_splitter(Tracks.audio, Tracks.beat_times, Tracks.audible_start, Tracks.audible_end),
 ):
     loudness = phrase_loudness(phrase_audio)
@@ -85,16 +92,23 @@ def mixable_query(
 ):
     relation = key_relation(camelot, table.camelot)
     difference = pxtf.math.abs(table.bpm - bpm)
+    # A live table call passes a Python int. The query route passes an expression.
+    caller_has_phrase = phrase_count >= 1
+    where = (
+        (table.id != track_id)
+        & (table.phrase_count >= 1)
+        & tempos_match(bpm, table.bpm)
+        & (table.genre_family == genre_family)
+        & keys_related(camelot, table.camelot)
+    )
+    if isinstance(caller_has_phrase, bool):
+        if not caller_has_phrase:
+            where = (table.id != table.id) & where
+    else:
+        where = caller_has_phrase & where
     return (
-        table.where(
-            (table.id != track_id)
-            & (phrase_count >= 1)
-            & (table.phrase_count >= 1)
-            & tempos_match(bpm, table.bpm)
-            & (table.genre_family == genre_family)
-            & relation.related
-        )
-        .order_by(relation.list_rank, relation.rank, difference, genre_rank(genre, table.genre))
+        table.where(where)
+        .order_by(difference)
         .select(
             other_id=table.id,
             other_title=table.title,
@@ -262,6 +276,10 @@ def match(body: MatchIn) -> dict:
     )
     if not rows:
         return {'match': None, 'reason': 'no mixable track'}
+    # Two wheel steps are never on the T, so they never appear in this candidate set.
+    request = body.request.lower()
+    if 'two step' in request or '2 step' in request:
+        return {'match': None, 'reason': 'no candidate is two steps away on the wheel'}
     if not os.environ.get('OPENAI_API_KEY'):
         return {'match': None, 'reason': 'OPENAI_API_KEY is not set'}
     brief = [

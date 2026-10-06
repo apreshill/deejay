@@ -15,3 +15,6 @@ dependencies = [
 # The local database. vars supply the values of the config vars a schema declares; a hosted
 # database is a second entry, named by its uri.
 # vars.media_dest = 's3://bucket/prefix'
+
+[[tool.pixeltable.database]]
+name = 'pxt://deejay:main'

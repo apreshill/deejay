@@ -346,10 +346,14 @@ def _estimate_genre(path: str) -> GenreEstimate:
     totals = {label: 0.0 for label in GENRE_LABELS}
     clips = _middle_windows(y, sr, start, end)
     pipe = _genre_pipe()
+    model_sr = int(pipe.feature_extractor.sampling_rate)
     for clip in clips:
-        scores = _scores_from_pipeline(
-            pipe({'raw': np.asarray(clip, dtype=np.float32), 'sampling_rate': sr}, candidate_labels=GENRE_LABELS)
-        )
+        clip = np.asarray(clip, dtype=np.float32).reshape(-1)
+        if sr != model_sr:
+            import librosa
+
+            clip = librosa.resample(clip, orig_sr=sr, target_sr=model_sr)
+        scores = _scores_from_pipeline(pipe(clip, candidate_labels=GENRE_LABELS))
         for label, score in scores.items():
             if label in totals:
                 totals[label] += score
@@ -421,6 +425,10 @@ def key_relation(caller: str, other: str) -> KeyRelation:
 
 
 @pxt.udf
+def keys_related(caller: str, other: str) -> bool:
+    return relate(caller, other)['related']
+
+
 def buckets_neighbor(bpm_a: float, bpm_b: float) -> bool:
     if bpm_a <= 0 or bpm_b <= 0:
         return False
@@ -546,10 +554,15 @@ def choose_match(sentence: str, candidates_json: str) -> str:
             {
                 'role': 'system',
                 'content': (
-                    'You choose one DJ mix candidate. The list already passed key, tempo, and genre checks. '
-                    'Reply with JSON only: {"track_id": "<id from the list, or empty>", "reason": "<one sentence>"}. '
-                    'Copy track_id from the list. If none of the candidates fit the request, use an empty track_id. '
-                    'Do not invent an id.'
+                    'You choose one DJ mix candidate, or none. '
+                    'Reply with JSON only: {"track_id": "<id copied from the list, or empty>", "reason": "<one sentence>"}. '
+                    'key_kind same means the same Camelot code. '
+                    'key_kind relative means the same number and the other letter. '
+                    'key_kind fifth means one step around the wheel, a neighboring number with the same letter. '
+                    'Two steps around the wheel means the numbers differ by 2. That is not same, relative, or fifth. '
+                    'A request for the same Camelot T matches same, relative, or fifth. '
+                    'If the request asks for a key or tempo relationship that no row has, return an empty track_id. '
+                    'Do not pick the nearest row. Do not describe a row as having a relationship its key_kind does not have.'
                 ),
             },
             {
