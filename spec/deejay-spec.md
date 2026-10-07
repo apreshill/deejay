@@ -107,17 +107,18 @@ In the dashboard, open `deejay`, then `phrases`, and play `phrase_audio`. `pxt r
 
 ## Mixable
 
-Key, tempo, and genre are the critical checks, in that order of priority. Two tracks are **mixable** when all of these hold:
+Key and tempo decide whether two tracks are mixable. Genre is computed and shown. It does not exclude a pair, so a hip-hop track can still match a house track when the key and the tempo work. A sentence on `/match` can ask for a genre, and the model prefers that genre inside the list.
+
+Two tracks are **mixable** when all of these hold:
 
 1. **Key.** They already sit on the same T of the Camelot wheel: the same code, the same number with the other letter (`8A` with `8B`), or the same letter with the number one step away, wrapping from 12 to 1 (`8A` with `7A` and `9A`). No pitch shift.
 2. **Tempo.** They are in the same 5 BPM bucket or in neighboring buckets, so they differ by less than 10 BPM and a DJ could match speed.
-3. **Genre.** They have the same genre, or genres in the same family.
 
 Length is a precondition: both tracks need at least 32 beats of audible audio.
 
-The priority order does two jobs. Matches are sorted by it: by key relationship (same key, then relative key, then a fifth away), then by BPM difference, then by genre (same genre before same family). And when a pair is not mixable, the reason names the first check that failed, in that order.
+Matches are sorted by BPM difference. When a pair is not mixable, the reason names the first check that failed, in this order: length, key, tempo.
 
-**Mixable with key sync** is a second list, labeled separately. Tempo, genre, and length hold the same way. The keys are not on the same T, but shifting one track by exactly 1 semitone puts them there. The notes call this key sync.
+**Mixable with key sync** is a second list, labeled separately. Tempo and length hold the same way. The keys are not on the same T, but shifting one track by exactly 1 semitone puts them there. The notes call this key sync.
 
 One semitone moves a key 7 steps around the Camelot wheel, not one. `8A` shifted up 1 semitone is `3A`. Shifted down 1, it is `1A`. The match records which track shifts and in which direction.
 
@@ -192,7 +193,7 @@ The feature, key-relation, preview, and match UDFs, and the `phrase_splitter` it
 
 **Upload.** The upload route returns only the new row: id, title, features, and the URL of its audio. An insert route can return only columns of the row it inserted, so it does not return the lists.
 
-**`/mixable`.** This route wraps a `@pxt.query`. It takes the track's id, Camelot key, BPM, and genre family, all from the upload response. It filters `tracks` with a key-relation UDF, the bucket check, and the family check, and leaves out the track itself.
+**`/mixable`.** This route wraps a `@pxt.query`. It takes the track's id, Camelot key, BPM, and genre family, all from the upload response. It filters `tracks` with a key-relation UDF and the bucket check, and leaves out the track itself. Genre is returned on each row. It is not a filter.
 
 Fallback, if Pixeltable 0.7.14 rejects a UDF inside `where`: the query selects the key relation, tempo check, and genre check for every other track, sorted with matches first. The route returns those rows with the non-matches dropped.
 

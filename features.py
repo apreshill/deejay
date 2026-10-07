@@ -500,8 +500,6 @@ def render_preview(track_a: pxt.Json, track_b: pxt.Json) -> Preview:
         return _fail('key')
     if not buckets_neighbor(float(first['bpm']), float(second['bpm'])):
         return _fail('tempo')
-    if first.get('genre_family') != second.get('genre_family'):
-        return _fail('genre')
 
     spans_a = phrase_spans(beats_a)
     spans_b = phrase_spans(beats_b)
@@ -561,6 +559,9 @@ def choose_match(sentence: str, candidates_json: str) -> str:
                     'key_kind fifth means one step around the wheel, a neighboring number with the same letter. '
                     'Two steps around the wheel means the numbers differ by 2. That is not same, relative, or fifth. '
                     'A request for the same Camelot T matches same, relative, or fifth. '
+                    'If the request names a genre or a family, pick a row with that genre or family. '
+                    'Hip hop, R&B, afrobeats, and reggaeton are Urban. House, deep house, tech house, and disco are House. '
+                    'If no row has the genre or family asked for, return an empty track_id. '
                     'If the request asks for a key or tempo relationship that no row has, return an empty track_id. '
                     'Do not pick the nearest row. Do not describe a row as having a relationship its key_kind does not have.'
                 ),

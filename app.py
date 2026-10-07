@@ -98,8 +98,7 @@ def mixable_query(
         (table.id != track_id)
         & (table.phrase_count >= 1)
         & tempos_match(bpm, table.bpm)
-        & (table.genre_family == genre_family)
-        & keys_related(camelot, table.camelot)
+            & keys_related(camelot, table.camelot)
     )
     if isinstance(caller_has_phrase, bool):
         if not caller_has_phrase:

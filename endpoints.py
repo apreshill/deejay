@@ -73,7 +73,14 @@ def api_key(cloud: str | None) -> str | None:
     return os.environ.get('PIXELTABLE_API_KEY') or None
 
 
-def request(url: str, key: str | None, method: str = 'GET', body: dict | None = None, file: Path | None = None):
+def request(
+    url: str,
+    key: str | None,
+    method: str = 'GET',
+    body: dict | None = None,
+    file: Path | None = None,
+    title: str | None = None,
+):
     headers = {}
     data = None
     if key:
@@ -86,6 +93,12 @@ def request(url: str, key: str | None, method: str = 'GET', body: dict | None = 
             f'Content-Type: audio/wav\r\n\r\n'
         ).encode()
         payload += file.read_bytes()
+        if title:
+            payload += (
+                f'\r\n--{boundary}\r\n'
+                f'Content-Disposition: form-data; name="given_title"\r\n\r\n'
+                f'{title}'
+            ).encode()
         payload += f'\r\n--{boundary}--\r\n'.encode()
         headers['content-type'] = f'multipart/form-data; boundary={boundary}'
         data = payload
@@ -161,8 +174,8 @@ def cmd_test(base: str, key: str | None, upload: bool) -> None:
     if upload:
         for name in CLIPS:
             path = ROOT / 'testdata' / name
-            status, row = request(f'{base}/tracks', key, method='POST', file=path)
-            print(f'upload {name}: {status} {row.get("camelot")} {row.get("id")}')
+            status, row = request(f'{base}/tracks', key, method='POST', file=path, title=path.stem)
+            print(f'upload {name}: {status} {row.get("title")} {row.get("camelot")} {row.get("id")}')
     status, listed = request(f'{base}/tracks', key)
     if status != 200:
         print(f'GET /tracks: {status}')
